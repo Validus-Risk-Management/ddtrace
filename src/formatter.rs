@@ -8,7 +8,7 @@
 use std::io;
 
 use chrono::Utc;
-use opentelemetry::trace::{SpanId, TraceContextExt, TraceId};
+use opentelemetry::trace::{SpanId, TraceId};
 use serde::ser::{SerializeMap, Serializer as _};
 use serde::Serialize;
 use tracing::{Event, Subscriber};
@@ -45,7 +45,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     span_ref.extensions().get::<OtelData>().map(|o| TraceInfo {
-        trace_id: o.parent_cx.span().span_context().trace_id().into(),
+        trace_id: o.builder.trace_id.unwrap_or(TraceId::INVALID).into(),
         span_id: o.builder.span_id.unwrap_or(SpanId::INVALID).into(),
     })
 }
