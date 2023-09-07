@@ -13,7 +13,6 @@ use serde::ser::{SerializeMap, Serializer as _};
 use serde::Serialize;
 use tracing::{Event, Subscriber};
 use tracing_opentelemetry::OtelData;
-use tracing_opentelemetry_instrumentation_sdk::find_current_trace_id;
 use tracing_serde::fields::AsMap;
 use tracing_serde::AsSerde;
 use tracing_subscriber::fmt::format::Writer;
@@ -46,10 +45,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     span_ref.extensions().get::<OtelData>().map(|o| TraceInfo {
-        trace_id: TraceId::from_hex(
-            &*find_current_trace_id()
-                .unwrap_or(TraceId::INVALID.to_string()))
-            .unwrap_or(TraceId::INVALID).into(),
+        trace_id: o.builder.trace_id.unwrap_or(TraceId::INVALID).into(),
         span_id: o.builder.span_id.unwrap_or(SpanId::INVALID).into(),
     })
 }
