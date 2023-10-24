@@ -45,8 +45,14 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     span_ref.extensions().get::<OtelData>().map(|o| {
-        let parent_id = o.parent_cx.span().span_context().trace_id();
-        let trace_id = o.builder.trace_id.unwrap_or(parent_id);
+        // If the parent ID is empty/0 - then fall back to the builder's ID
+        let parent_span_cx = o.parent_cx.span();
+
+        let trace_id = if parent_span_cx.span_context().trace_id() != TraceId::INVALID {
+            parent_span_cx.span_context().trace_id()
+        } else {
+            o.builder.trace_id.unwrap_or(TraceId::INVALID)
+        };
         TraceInfo {
             trace_id: trace_id.into(),
             span_id: o.builder.span_id.unwrap_or(SpanId::INVALID).into(),
