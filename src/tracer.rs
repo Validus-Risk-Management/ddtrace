@@ -4,11 +4,11 @@
 //! to send traces to the Datadog agent in batches over gRPC.
 //!
 //! It also contains a convenience function to build a layer with the tracer.
-use opentelemetry::sdk::trace::{RandomIdGenerator, Sampler, Tracer};
-use opentelemetry::sdk::{trace, Resource};
 pub use opentelemetry::trace::{TraceError, TraceResult};
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, Tracer};
+use opentelemetry_sdk::{trace, Resource};
 use std::time::Duration;
 use tracing::Subscriber;
 use tracing_opentelemetry::{OpenTelemetryLayer, PreSampledTracer};
@@ -18,7 +18,6 @@ pub fn build_tracer(service_name: &str) -> TraceResult<Tracer> {
     let exporter = opentelemetry_otlp::new_exporter()
         .tonic()
         .with_timeout(Duration::from_secs(3));
-
     opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_trace_config(
@@ -31,7 +30,7 @@ pub fn build_tracer(service_name: &str) -> TraceResult<Tracer> {
                 .with_id_generator(RandomIdGenerator::default()),
         )
         .with_exporter(exporter)
-        .install_batch(opentelemetry::runtime::Tokio)
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
 pub fn build_layer<S>(service_name: &str) -> TraceResult<OpenTelemetryLayer<S, Tracer>>
