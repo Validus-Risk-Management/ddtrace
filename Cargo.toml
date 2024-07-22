@@ -20,7 +20,7 @@ axum = { version = "^0.7.5", optional = true }
 axum-tracing-opentelemetry = { version = "0.19.0", optional = true }
 chrono = "^0.4.24"
 opentelemetry = { version = "0.23.0" }
-opentelemetry-datadog = "0.11.0"
+opentelemetry-datadog = { version = "0.11.0", features = ["reqwest-client", "agent-sampling"] }
 opentelemetry-otlp = { version = "0.16.0" , features = ["tls-roots"]}
 opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"] }
 serde = { version = "^1.0.156", features = ["derive"] }
