@@ -15,6 +15,10 @@ exclude = [".pre-commit-config.yaml"]
 [features]
 axum = ["dep:axum-tracing-opentelemetry"]
 tonic = ["dep:tonic-tracing-opentelemetry"]
+tracing_level_info = [
+    "axum-tracing-opentelemetry/tracing_level_info",
+    "tonic-tracing-opentelemetry/tracing_level_info",
+]
 
 [dependencies]
 axum-tracing-opentelemetry = { version = "0.29", optional = true }
