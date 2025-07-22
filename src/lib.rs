@@ -11,6 +11,7 @@
 
 #[cfg(feature = "axum")]
 pub mod axum;
+pub mod error;
 pub mod formatter;
 mod propagator;
 pub mod tracer;

@@ -4,41 +4,53 @@
 //! to send traces to the Datadog agent in batches over gRPC.
 //!
 //! It also contains a convenience function to build a layer with the tracer.
-use opentelemetry::sdk::trace::{RandomIdGenerator, Sampler, Tracer};
-use opentelemetry::sdk::{trace, Resource};
-pub use opentelemetry::trace::{TraceError, TraceResult};
-use opentelemetry::KeyValue;
+use crate::error::Error;
+use opentelemetry::trace::TracerProvider;
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, SdkTracerProvider, Tracer};
+use opentelemetry_sdk::Resource;
 use std::time::Duration;
 use tracing::Subscriber;
 use tracing_opentelemetry::{OpenTelemetryLayer, PreSampledTracer};
 use tracing_subscriber::registry::LookupSpan;
 
-pub fn build_tracer(service_name: &str) -> TraceResult<Tracer> {
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_timeout(Duration::from_secs(3));
-
-    opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_trace_config(
-            trace::config()
-                .with_sampler(Sampler::AlwaysOn)
-                .with_resource(Resource::new(vec![KeyValue::new(
-                    "service.name",
-                    service_name.to_string(),
-                )]))
-                .with_id_generator(RandomIdGenerator::default()),
-        )
-        .with_exporter(exporter)
-        .install_batch(opentelemetry::runtime::Tokio)
+pub struct ProviderGuard {
+    tracer_provider: SdkTracerProvider,
 }
 
-pub fn build_layer<S>(service_name: &str) -> TraceResult<OpenTelemetryLayer<S, Tracer>>
+impl Drop for ProviderGuard {
+    fn drop(&mut self) {
+        let _ = self.tracer_provider.force_flush();
+        let _ = self.tracer_provider.shutdown();
+    }
+}
+
+pub fn build_tracer_provider(service_name: String) -> Result<SdkTracerProvider, Error> {
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_tonic()
+        .with_timeout(Duration::from_secs(3))
+        .build()?;
+    let resource = Resource::builder().with_service_name(service_name).build();
+
+    let provider = SdkTracerProvider::builder()
+        .with_sampler(Sampler::AlwaysOn)
+        .with_resource(resource)
+        .with_id_generator(RandomIdGenerator::default())
+        .with_batch_exporter(exporter)
+        .build();
+
+    Ok(provider)
+}
+
+pub fn build_layer<S>(
+    service_name: String,
+) -> Result<(OpenTelemetryLayer<S, Tracer>, ProviderGuard), Error>
 where
     Tracer: opentelemetry::trace::Tracer + PreSampledTracer + 'static,
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
-    let tracer = build_tracer(service_name)?;
-    Ok(tracing_opentelemetry::layer().with_tracer(tracer))
+    let tracer_provider = build_tracer_provider(service_name)?;
+    let layer = tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer(""));
+    let guard = ProviderGuard { tracer_provider };
+    Ok((layer, guard))
 }
