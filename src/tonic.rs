@@ -5,4 +5,5 @@
 //!
 //! [`tonic-tracing-opentelemetry`]: https://github.com/davidB/tracing-opentelemetry-instrumentation-sdk
 
-pub use tonic_tracing_opentelemetry::middleware::server::{Filter, OtelGrpcLayer};
+pub use tonic_tracing_opentelemetry::middleware::filters::reject_healthcheck;
+pub use tonic_tracing_opentelemetry::middleware::server::{Filter, OtelGrpcLayer, OtelGrpcService};
