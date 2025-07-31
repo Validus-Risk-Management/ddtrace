@@ -29,7 +29,7 @@ struct TraceInfo {
 
 impl From<TraceId> for DatadogId {
     fn from(value: TraceId) -> Self {
-        let bytes = &value.to_bytes()[std::mem::size_of::<u64>()..std::mem::size_of::<u128>()];
+        let bytes = &value.to_bytes()[size_of::<u64>()..size_of::<u128>()];
         Self(u64::from_be_bytes(bytes.try_into().unwrap()))
     }
 }
@@ -106,12 +106,9 @@ impl<'a> io::Write for WriteAdaptor<'a> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let s =
             std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        self.fmt_write.write_str(s).map_err(io::Error::other)?;
 
-        self.fmt_write
-            .write_str(s)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-        Ok(s.as_bytes().len())
+        Ok(s.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {

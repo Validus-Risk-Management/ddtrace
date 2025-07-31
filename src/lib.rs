@@ -11,8 +11,11 @@
 
 #[cfg(feature = "axum")]
 pub mod axum;
+pub mod error;
 pub mod formatter;
 mod propagator;
+#[cfg(feature = "tonic")]
+pub mod tonic;
 pub mod tracer;
 
 pub use propagator::set_global_propagator;

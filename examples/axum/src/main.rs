@@ -2,17 +2,18 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use axum::{routing::get, Router};
-use ddtrace::axum::opentelemetry_tracing_layer;
+use ddtrace::axum::OtelAxumLayer;
+use ddtrace::error::Error;
 use ddtrace::formatter::DatadogFormatter;
 use ddtrace::set_global_propagator;
-use ddtrace::tracer::{build_layer, TraceResult};
+use ddtrace::tracer::build_layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 #[tokio::main]
-async fn main() -> TraceResult<()> {
+async fn main() -> Result<(), Error> {
     let service_name = std::env::var("DD_SERVICE").unwrap_or("my-service".to_string());
-    let tracing_layer = build_layer(&service_name)?;
+    let (tracing_layer, _guard) = build_layer(service_name)?;
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
@@ -28,16 +29,13 @@ async fn main() -> TraceResult<()> {
 
     let app = Router::new()
         .route("/", get(root))
-        .layer(opentelemetry_tracing_layer())
+        .layer(OtelAxumLayer::default())
         .route("/health", get(health));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3025));
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
     tracing::info!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .with_graceful_shutdown(ddtrace::axum::shutdown_signal())
-        .await
-        .unwrap();
 
     Ok(())
 }
