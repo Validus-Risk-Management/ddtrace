@@ -8,47 +8,15 @@
 use std::io;
 
 use chrono::Utc;
-use opentelemetry::trace::{SpanId, TraceId};
+use opentelemetry::trace::TraceContextExt;
 use serde::ser::{SerializeMap, Serializer as _};
-use serde::Serialize;
-use tracing::{Event, Subscriber};
-use tracing_opentelemetry::OtelData;
+use tracing::{Event, Span, Subscriber};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_serde::fields::AsMap;
 use tracing_serde::AsSerde;
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
-use tracing_subscriber::registry::{LookupSpan, SpanRef};
-
-#[derive(Serialize)]
-struct DatadogId(u64);
-
-struct TraceInfo {
-    trace_id: DatadogId,
-    span_id: DatadogId,
-}
-
-impl From<TraceId> for DatadogId {
-    fn from(value: TraceId) -> Self {
-        let bytes = &value.to_bytes()[size_of::<u64>()..size_of::<u128>()];
-        Self(u64::from_be_bytes(bytes.try_into().unwrap()))
-    }
-}
-
-impl From<SpanId> for DatadogId {
-    fn from(value: SpanId) -> Self {
-        Self(u64::from_be_bytes(value.to_bytes()))
-    }
-}
-
-fn lookup_trace_info<S>(span_ref: &SpanRef<S>) -> Option<TraceInfo>
-where
-    S: Subscriber + for<'a> LookupSpan<'a>,
-{
-    span_ref.extensions().get::<OtelData>().map(|o| TraceInfo {
-        trace_id: o.builder.trace_id.unwrap_or(TraceId::INVALID).into(),
-        span_id: o.builder.span_id.unwrap_or(SpanId::INVALID).into(),
-    })
-}
+use tracing_subscriber::registry::LookupSpan;
 
 // mostly stolen from here: https://github.com/tokio-rs/tracing/issues/1531
 pub struct DatadogFormatter;
@@ -60,7 +28,7 @@ where
 {
     fn format_event(
         &self,
-        ctx: &FmtContext<'_, S, N>,
+        _ctx: &FmtContext<'_, S, N>,
         mut writer: Writer<'_>,
         event: &Event<'_>,
     ) -> std::fmt::Result
@@ -77,12 +45,15 @@ where
             serializer.serialize_entry("fields", &event.field_map())?;
             serializer.serialize_entry("target", meta.target())?;
 
-            if let Some(ref span_ref) = ctx.lookup_current() {
-                if let Some(trace_info) = lookup_trace_info(span_ref) {
-                    serializer.serialize_entry("dd.span_id", &trace_info.span_id)?;
-                    serializer.serialize_entry("dd.trace_id", &trace_info.trace_id)?;
-                }
-            }
+            let otel_context = Span::current().context();
+            let span = otel_context.span();
+            let span_context = span.span_context();
+
+            let span_id = span_context.span_id();
+            let trace_id = span_context.trace_id();
+
+            serializer.serialize_entry("dd.span_id", &format!("{span_id}"))?;
+            serializer.serialize_entry("dd.trace_id", &format!("{trace_id}"))?;
 
             serializer.end()
         };
@@ -113,27 +84,5 @@ impl<'a> io::Write for WriteAdaptor<'a> {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::formatter::DatadogId;
-    use opentelemetry::trace::{SpanId, TraceId};
-
-    #[test]
-    fn test_trace_id_converted_to_datadog_id() {
-        let trace_id = TraceId::from_hex("2de7888d8f42abc9c7ba048b78f7a9fb").unwrap();
-        let datadog_id: DatadogId = trace_id.into();
-
-        assert_eq!(datadog_id.0, 14391820556292303355);
-    }
-
-    #[test]
-    fn test_span_id_converted_to_datadog_id() {
-        let span_id = SpanId::from_hex("58406520a0066491").unwrap();
-        let datadog_id: DatadogId = span_id.into();
-
-        assert_eq!(datadog_id.0, 6359193864645272721);
     }
 }
